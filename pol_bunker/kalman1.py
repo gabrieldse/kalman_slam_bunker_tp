@@ -37,14 +37,14 @@ class Kalman(Node):
     def __init__(self):
 
         super().__init__('Kalman')
-        self.get_logger().info("Kalman start")                   
+        self.get_logger().info("Kalman start")  
+        self.dt=0.1                 
 
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.cb_odom, 1)
         self.sub_tag = self.create_subscription(ChannelFloat32,"/tag",self.cb_tag,1)
         self.pub_cmd_vel =self.create_publisher(Twist,"/cmd_vel",1)
-        self.timer=self.create_timer(0.05, self.commande)
+        self.timer=self.create_timer(self.dt, self.commande)
         
-
         self.cmd=Twist()
         self.t=0.0
         self.cmd.linear.x=0.0
@@ -59,21 +59,19 @@ class Kalman(Node):
         axis.set_xlim(-10.0,10.0)
         axis.set_ylim(-10.0,10.0)
       
-        plt.draw()
-        plt.pause(0.001)
+        #plt.draw()
+        #plt.pause(0.001)
 
     #envoie une commande toutes les 50ms
     def commande(self):
         # self.get_logger().info("cmd") 
-        self.t=self.t+0.05
+        self.t=self.t+0.1
         if self.t>0.5:
             self.cmd.linear.x=0.5
         if self.t>5.0:
             self.cmd.linear.x=0.0
             # self.angular.z=1.0
         self.pub_cmd_vel.publish(self.cmd)
-
-    
     
     #récupération des informations de tag
     #dans self.tag.values on trouve [tag_id,dist,tag_id2,dist2,0,0]
@@ -89,13 +87,11 @@ class Kalman(Node):
         self.position.y=msg.pose.pose.position.y
         roll,pitch,yaw=euler_from_quaternion(msg.pose.pose.orientation)
         self.position.theta=yaw
-        plt.scatter(self.position.x,self.position.y,s=5,color = 'red')
+        #plt.scatter(self.position.x,self.position.y,s=5,color = 'red')
         # plt.show(block=False)
-        plt.draw()
-        plt.pause(0.0001)
+        #plt.draw()
+        #plt.pause(0.0001)
         
-
-
 
 
 def main(args=None):
@@ -106,5 +102,3 @@ def main(args=None):
 
 if __name__== "__main__":
     main()
-
-

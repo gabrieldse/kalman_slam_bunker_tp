@@ -33,7 +33,8 @@ setup(
             "node_bno055=pol_bunker.node_bno055:main",
             "gotogps_bunker=pol_bunker.gotogps_bunker:main",
             "my_navsat_transform=pol_bunker.my_navsat_transform:main",
-            "apriltag_detect=pol_bunker.apriltag_detect:main"
+            "apriltag_detect=pol_bunker.apriltag_detect:main",
+            "kalman1=pol_bunker.kalman1:main"
         ],
     },
 )

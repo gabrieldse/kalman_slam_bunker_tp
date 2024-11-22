@@ -1,5 +1,3 @@
-# This project
-
 # Package POL_BUNKER en humble
 
 Modele urdf du bunker : my_bunker.xacro

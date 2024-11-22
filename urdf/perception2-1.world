@@ -31,6 +31,10 @@
       <pose>0 0 0 0 0 0</pose>
     </frame>
 
+    <physics name ="default_physics" type="ode">
+      <real_time_update_rate>500.0</real_time_update_rate>
+    </physics>
+
     <model name='ground_plane'>
       <static>1</static>
       <link name='ground'>
