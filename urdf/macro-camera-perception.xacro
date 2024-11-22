@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<robot  xmlns:xacro="http://ros.org/wiki/xacro">
+
+<xacro:macro name="camera" params="num xyz rpy">
+   <link name="$(arg namespace)/camera_link_${num}">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+            <box size="0.05 0.05 0.05" />
+        </geometry>
+        <material name="white"/>
+      </visual>
+    </link>
+
+    <joint name="$(arg namespace)/camera_joint_${num}" type="fixed">
+        <parent link="$(arg namespace)/base_link"/>
+        <child link="$(arg namespace)/camera_link_${num}"/>
+        <origin xyz="${xyz}" rpy="${rpy}"/>
+
+    </joint> 
+    <gazebo reference="$(arg namespace)/camera_link_${num}">
+        <sensor type="camera" name="camera_${num}">
+            <update_rate>10</update_rate>
+            <visualize>true</visualize>
+            <camera name="cam_${num}">
+                <horizontal_fov>1.4</horizontal_fov>
+                <image>
+                    <width>1280</width>
+                    <height>960</height>
+                    <format>B8G8R8</format>
+                </image>
+                <clip>
+                    <near>0.02</near>
+                    <far>5</far>
+                </clip>
+                <noise>
+                    <type>gaussian</type>
+                    <mean>0.0</mean>
+                    <stddev>0.007</stddev>
+                </noise>
+            </camera>
+            <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+                <frame_name>$(arg namespace)/camera_link_${num}</frame_name>
+                <!-- <min_depth>0.1</min_depth>
+                <max_depth>500</max_depth> -->
+            </plugin>
+        </sensor>
+    </gazebo>
+
+
+
+</xacro:macro>
+
+
+
+</robot>

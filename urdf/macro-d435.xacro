@@ -1,0 +1,233 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
+<xacro:macro name="myd435" params="xyz rpy">
+
+    <link name="$(arg namespace)/camera_link"></link>
+    <joint name="$(arg namespace)/camera_joint" type="fixed">
+        <parent link="$(arg namespace)/base_link"/>
+        <child link="$(arg namespace)/camera_link"/>
+        <origin xyz="${xyz}" rpy="${rpy}" />
+        <!-- <origin xyz="${base_length/2} 0.0175 ${base_height+sol_height+0.0125}" rpy="0 0 0"/> -->
+    </joint>
+
+
+    <link name="$(arg namespace)/camera_depth_frame"></link>
+    <joint name="$(arg namespace)/camera_depth_joint" type="fixed">
+        <parent link="$(arg namespace)/camera_link" />
+        <child link="$(arg namespace)/camera_depth_frame" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+    </joint>
+
+
+    <link name="$(arg namespace)/camera_depth_optical_frame">
+        <visual name="$(arg namespace)/visual_camera">
+            <geometry>
+                <!-- <mesh filename="$(find pol_bunker)/meshes/d435.dae" /> -->
+                <box size="0.1 0.02 0.01"/>
+            </geometry>
+            <material name="red"/>
+        </visual>
+    </link>
+    <joint name="$(arg namespace)/camera_optical_joint" type="fixed">
+        <parent link="$(arg namespace)/camera_depth_frame"/>
+        <child link="$(arg namespace)/camera_depth_optical_frame"/>
+        <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+    </joint>
+
+
+    <link name="$(arg namespace)/camera_color_frame"></link>
+    <joint name="$(arg namespace)/camera_color_joint" type="fixed">
+        <parent link="$(arg namespace)/camera_depth_frame" />
+        <child link="$(arg namespace)/camera_color_frame" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+    </joint>
+
+
+    <link name="$(arg namespace)/camera_color_optical_frame"></link>
+    <joint name="$(arg namespace)/camera_color_optical_joint" type="fixed">
+        <parent link="$(arg namespace)/camera_color_frame" />
+        <child link="$(arg namespace)/camera_color_optical_frame" />
+        <origin xyz="0 0 0 " rpy="${-pi/2} 0 ${-pi/2}" />
+    </joint>
+
+
+    <link name="$(arg namespace)/camera_left_ir_frame"></link>
+    <joint name="$(arg namespace)/camera_left_ir_joint" type="fixed">
+        <parent link="$(arg namespace)/camera_depth_frame" />
+        <child link="$(arg namespace)/camera_left_ir_frame" />
+        <origin xyz="0 0 0 " rpy="0 0 0 " />
+    </joint>  
+
+
+    <link name="$(arg namespace)/camera_left_ir_optical_frame"></link>
+    <joint name="$(arg namespace)/camera_left_ir_optical_joint" type="fixed">
+        <parent link="$(arg namespace)/camera_left_ir_frame" />
+        <child link="$(arg namespace)/camera_left_ir_optical_frame" />
+        <origin xyz="0 0 0 " rpy="${-pi/2} 0 ${-pi/2}" />
+    </joint>
+
+
+    <link name="$(arg namespace)/camera_right_ir_frame"></link>
+    <joint name="$(arg namespace)/camera_right_ir_joint" type="fixed">
+        <parent link="$(arg namespace)/camera_depth_frame" />
+        <child link="$(arg namespace)/camera_right_ir_frame" />
+        <origin xyz="0 -0.050 0 " rpy="0 0 0" />
+    </joint>
+
+
+    <link name="$(arg namespace)/camera_right_ir_optical_frame"></link>
+    <joint name="$(arg namespace)/camera_right_ir_optical_joint" type="fixed">
+        <parent link="$(arg namespace)/camera_right_ir_frame" />
+        <child link="$(arg namespace)/camera_right_ir_optical_frame" />
+        <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}" />
+    </joint>
+
+<!-- PLUGINS GAZEBO FOR CAMERAS : DEPTH, RGB, INFRA -->
+
+
+    <gazebo reference="$(arg namespace)/camera_link">
+        <material>Gazebo/Red</material>
+
+        <sensor name="depth" type="depth">
+            <pose> 0 0 0 0 0 0 </pose>
+            <visualize>true</visualize>
+            <update_rate>10</update_rate>
+            <camera>
+                <horizontal_fov>1.089</horizontal_fov>
+                <image>
+                    <width>640</width>
+                    <height>480</height>
+                </image>
+                <clip>
+                    <near>0.1</near>
+                    <far>8</far>
+                </clip>
+                <noise>
+                    <type>gaussian</type>
+                    <mean>0.0</mean>
+                    <stddev>0.100</stddev>
+                </noise>
+            </camera>
+            <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+                <alwaysOn>true</alwaysOn>
+                <updateRate>10.0</updateRate>
+                <frame_name>$(arg namespace)/camera_depth_optical_frame</frame_name>
+                <cameraName>depth</cameraName>
+                <imageTopicName>image_raw</imageTopicName>
+                <cameraInfoTopicName>camera_info</cameraInfoTopicName>                
+            </plugin>
+        </sensor>
+    </gazebo>
+
+
+    <gazebo reference="$(arg namespace)/camera_color_frame">
+
+        <sensor name="color" type="camera">
+            <pose> 0 0 0 0 0 0 </pose>
+            <visualize>true</visualize>
+            <update_rate>30</update_rate>
+            <always_on>true</always_on>
+            <camera>
+                <horizontal_fov>1.57</horizontal_fov>
+                <image>
+                    <format>B8G8R8</format>
+                    <width>1280</width>
+                    <height>720</height>
+                </image>
+                <clip>
+                    <near>0.1</near>
+                    <far>8</far>
+                </clip>
+                <noise>
+                    <type>gaussian</type>
+                    <mean>0.0</mean>
+                    <stddev>0.007</stddev>
+                </noise>
+            </camera>
+            <plugin name="camera_color_controller" filename="libgazebo_ros_camera.so">
+                <alwaysOn>true</alwaysOn>
+                <updateRate>30.0</updateRate>
+                <cameraName>color</cameraName>
+                <imageTopicName>image_raw</imageTopicName>
+                <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+                <frameName>$(arg namespace)/camera_color_frame</frameName>
+            </plugin>
+        </sensor>
+
+  </gazebo>
+
+
+  <gazebo reference="$(arg namespace)/camera_left_ir_frame">
+
+    <sensor name="infra1" type="camera">
+        <pose> 0 0 0 0 0 0 </pose>
+        <visualize>false</visualize>
+        <update_rate>1</update_rate>
+        <always_on>true</always_on>
+        <camera>
+            <horizontal_fov>1.57</horizontal_fov>
+            <image>
+                <format>L_INT8</format>
+                <width>1280</width>
+                <height>720</height>
+            </image>
+            <clip>
+                <near>0.1</near>
+                <far>8</far>
+            </clip>
+            <noise>
+                <type>gaussian</type>
+                <mean>0.0</mean>
+                <stddev>0.05</stddev>
+            </noise>
+        </camera>
+        <plugin name="camera_infra1_controller" filename="libgazebo_ros_camera.so">
+            <alwaysOn>true</alwaysOn>
+            <updateRate>1.0</updateRate>
+            <cameraName>infra1</cameraName>
+            <imageTopicName>image_raw</imageTopicName>
+            <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+            <frameName>$(arg namespace)/camera_right_ir_frame</frameName>
+        </plugin>
+    </sensor>
+
+  </gazebo>
+
+  <gazebo reference="$(arg namespace)/camera_right_ir_frame">
+
+    <sensor name="infra2" type="camera">
+        <pose> 0 0 0 0 0 0 </pose>
+        <visualize>false</visualize>
+        <update_rate>1</update_rate>
+        <always_on>true</always_on>
+        <camera>
+            <horizontal_fov>1.57</horizontal_fov>
+            <image>
+                <format>L_INT8</format>
+                <width>1280</width>
+                <height>720</height>
+            </image>
+            <clip>
+                <near>0.1</near>
+                <far>8</far>
+            </clip>
+            <noise>
+                <type>gaussian</type>
+                <mean>0.0</mean>
+                <stddev>0.05</stddev>
+            </noise>
+        </camera>
+        <plugin name="camera_infra2_controller" filename="libgazebo_ros_camera.so">
+            <alwaysOn>true</alwaysOn>
+            <updateRate>1.0</updateRate>
+            <cameraName>infra2</cameraName>
+            <imageTopicName>image_raw</imageTopicName>
+            <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+            <frameName>$(arg namespace)/camera_right_ir_frame</frameName>
+        </plugin>
+    </sensor> 
+
+  </gazebo>
+
+</xacro:macro>
+</robot>
