@@ -63,12 +63,16 @@ class Kalman(Node):
         self.position=Pose2D()
         self.estim=Pose2D()
 
-        # Variable of xt
+        # Estimation of epsilon of xt
         self.epsilon = 0.0
         self.epsilon_array = []
         self.mu_moyen = 0.0
         self.epsilon_moyen = 0.0
 
+        # Variable of delta of xt
+        self.delta_array = []
+        self.delta_moyen = 0.0
+        self.variance_delta_moyen = 0.0
 
     #envoie une commande toutes les 50ms
     def commande(self):
@@ -76,8 +80,15 @@ class Kalman(Node):
         self.t=self.t+self.dt
         if self.t>0.5:
             self.cmd.linear.x=0.5
-        if self.t>10.0:
+        if self.t>11.0:
             self.cmd.linear.x=0.0
+
+             ### Calculate the noise/ error of the camera----------------------------------------------------------
+            #self.get_logger().info(f"Delta moyen: {self.tag}")
+            self.delta_array.append(self.tag.values[1])
+            self.delta_moyen = np.mean(self.delta_array)
+            self.variance_delta_moyen = np.var(self.delta_array)
+
 
             # self.angular.z=1.0
         self.pub_cmd_vel.publish(self.cmd)
@@ -85,21 +96,26 @@ class Kalman(Node):
         # Estimation
         self.estim.x=self.estim.x+self.dt*self.cmd.linear.x
 
-        ### Setting up the actionning state equation xt----------------------------------------------------------
+        ### Calculate the noise/ error of the robot----------------------------------------------------------
+        self.get_logger().info("[###################################################################")
         # Epsilon
         self.epsilon = self.position.x - self.estim.x
         self.epsilon_array.append(self.epsilon)
-
         self.mu_moyen = np.mean(self.epsilon_array)
         self.epsilon_moyen = np.var(self.epsilon_array)
 
-        # # self.get_logger().info(" ")
-        # # self.get_logger().info(f"Mu moyen: {self.mu_moyen}")
-        # # self.get_logger().info(f"Ecart Type: {self.epsilon_moyen}")
-        # # self.get_logger().info(" ")
-
-        ### Setting up the percetpion state equation zt----------------------------------------------------------
         self.get_logger().info(f"Mu moyen: {self.mu_moyen}")
+        self.get_logger().info(f"Ecart Type: {self.epsilon_moyen}")
+        self.get_logger().info(" ")
+
+        self.get_logger().info(f"Delta moyen: {self.delta_moyen}")
+        self.get_logger().info(f"Ecart Type Delta: {self.variance_delta_moyen}")
+        self.get_logger().info("###################################################################] ")
+        self.get_logger().info(" ")
+        self.get_logger().info(" ")
+
+
+       
 
         # pour envoyer la position estimée au noeud graph
         self.pub_estim.publish(self.estim)
