@@ -56,11 +56,12 @@ class Kalman(Node):
         self.fig = plt.figure(1)
         self.fig.clf()
         axis=self.fig.gca()
-        axis.set_xlim(-10.0,10.0)
-        axis.set_ylim(-10.0,10.0)
+        axis.set_xlim(-1.0,10.0)
+        axis.set_ylim(-3.0,3.0)
       
-        #plt.draw()
-        #plt.pause(0.001)
+        plt.draw()
+        plt.grid()
+        plt.pause(0.001)
 
     #envoie une commande toutes les 50ms
     def commande(self):
@@ -71,6 +72,7 @@ class Kalman(Node):
         if self.t>5.0:
             self.cmd.linear.x=0.0
             # self.angular.z=1.0
+            self.get_logger().info(f"Final X position:{self.position.x}")
         self.pub_cmd_vel.publish(self.cmd)
     
     #récupération des informations de tag
@@ -87,10 +89,10 @@ class Kalman(Node):
         self.position.y=msg.pose.pose.position.y
         roll,pitch,yaw=euler_from_quaternion(msg.pose.pose.orientation)
         self.position.theta=yaw
-        #plt.scatter(self.position.x,self.position.y,s=5,color = 'red')
+        plt.scatter(self.position.x,self.position.y,s=5,color = 'red')
         # plt.show(block=False)
-        #plt.draw()
-        #plt.pause(0.0001)
+        plt.draw()
+        plt.pause(0.0001)
         
 
 

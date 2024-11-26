@@ -3,8 +3,7 @@ import launch
 import xacro
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument
-from launch.actions import IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
@@ -29,13 +28,9 @@ def generate_launch_description():
         get_package_share_directory("pol_bunker"), "urdf/bunker.rviz"
     )
 
-
-
     world_file = 'perception2-1.world'
     # world_file = 'perception2-2.world'
     # world_file = 'perception2-3.world'
-   
-    
 
     #  Pour le premier bunker
     robot_state_node = Node(
@@ -119,9 +114,14 @@ def generate_launch_description():
         package="pol_bunker",
         executable="kalman1"
     )
+    
+    Kalman_delayed = TimerAction(
+        period=5.0,  # Adjust the delay (in seconds) based on Gazebo's startup time
+        actions=[Kalman]
+    )   
 
     ld.add_action(apriltag)
-    ld.add_action(Kalman)
+    ld.add_action(Kalman_delayed)
     ld.add_action(world_arg)
     # ld.add_action(rviz_node)
 
