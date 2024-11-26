@@ -63,6 +63,12 @@ class Kalman(Node):
         self.position=Pose2D()
         self.estim=Pose2D()
 
+        # Variable of xt
+        self.epsilon = 0.0
+        self.epsilon_array = []
+        self.mu_moyen = 0.0
+        self.epsilon_moyen = 0.0
+
 
     #envoie une commande toutes les 50ms
     def commande(self):
@@ -72,14 +78,32 @@ class Kalman(Node):
             self.cmd.linear.x=0.5
         if self.t>10.0:
             self.cmd.linear.x=0.0
+
             # self.angular.z=1.0
         self.pub_cmd_vel.publish(self.cmd)
         
-        #calcul simple de la position estimée dans ce cas
+        # Estimation
         self.estim.x=self.estim.x+self.dt*self.cmd.linear.x
-        
+
+        ### Setting up the actionning state equation xt----------------------------------------------------------
+        # Epsilon
+        self.epsilon = self.position.x - self.estim.x
+        self.epsilon_array.append(self.epsilon)
+
+        self.mu_moyen = np.mean(self.epsilon_array)
+        self.epsilon_moyen = np.var(self.epsilon_array)
+
+        # # self.get_logger().info(" ")
+        # # self.get_logger().info(f"Mu moyen: {self.mu_moyen}")
+        # # self.get_logger().info(f"Ecart Type: {self.epsilon_moyen}")
+        # # self.get_logger().info(" ")
+
+        ### Setting up the percetpion state equation zt----------------------------------------------------------
+        self.get_logger().info(f"Mu moyen: {self.mu_moyen}")
+
         # pour envoyer la position estimée au noeud graph
         self.pub_estim.publish(self.estim)
+        #self.get_logger().info(f"epsilon: {self.epsilon}")
 
         # pour  détecter si probleme de synchro temporelle
         # tout va bien si delta reste constant
@@ -109,16 +133,12 @@ class Kalman(Node):
         # gazebo pas a pas
         # ros2 service call /step_world gazebo_msgs/srv/StepWorld "{num_steps: 1}"
 
-        
-
-
 
 
 def main(args=None):
     rclpy.init(args=args)
     node=Kalman()
     # node.set_parameters('use_sim_time', True)
-    
     rclpy.spin(node)
     rclpy.shutdown()
 
