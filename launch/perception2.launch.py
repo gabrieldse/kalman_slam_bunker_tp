@@ -47,7 +47,7 @@ def generate_launch_description():
     )
 
     joint_state_node = Node(
-        package="joint_state_publisher",
+        package="joint_state_publisher", 
         executable="joint_state_publisher",
         parameters=[{"robot_description": robot_desc, "use_sim_time": use_sim_time}],
     )
@@ -112,7 +112,8 @@ def generate_launch_description():
 
     apriltag=Node(
         package="pol_bunker",
-        executable="apriltag_detect"
+        executable="apriltag_detect",
+        parameters=[{"use_sim_time": use_sim_time}]
     )
 
     ld.add_action(apriltag)

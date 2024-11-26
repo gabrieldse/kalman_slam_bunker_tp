@@ -2,6 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from sensor_msgs.msg import Image,CameraInfo,ChannelFloat32 # Image is the message type
 from geometry_msgs.msg import Twist,Pose2D
 from nav_msgs.msg import Odometry
@@ -37,46 +38,59 @@ class Kalman(Node):
     def __init__(self):
 
         super().__init__('Kalman')
-        self.get_logger().info("Kalman start")  
-        self.dt=0.1                 
+        self.set_parameters([Parameter('use_sim_time', Parameter.Type.BOOL, True)])
+        # use_sim_time = self.get_parameter('use_sim_time').value
+        # self.get_logger().info(f"use_sim_time: {use_sim_time}")
+
+        self.get_logger().info("Kalman start")                   
 
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.cb_odom, 1)
         self.sub_tag = self.create_subscription(ChannelFloat32,"/tag",self.cb_tag,1)
         self.pub_cmd_vel =self.create_publisher(Twist,"/cmd_vel",1)
+        self.pub_estim=self.create_publisher(Pose2D,"/odom_estim",1)
+
+        self.dt=0.1
         self.timer=self.create_timer(self.dt, self.commande)
         
+        self.sim_time=0.0
         self.cmd=Twist()
         self.t=0.0
         self.cmd.linear.x=0.0
 
         self.tag_recept=False
         self.tag=ChannelFloat32()
-        self.tag.values= [0.0,0.0,0.0,0.0,0.0]
+        self.tag.values= [0.0,0.0,0.0,0.0,0.0,0.0]
         self.position=Pose2D()
-        self.fig = plt.figure(1)
-        self.fig.clf()
-        axis=self.fig.gca()
-        axis.set_xlim(-1.0,10.0)
-        axis.set_ylim(-3.0,3.0)
-      
-        plt.draw()
-        plt.grid()
-        plt.pause(0.001)
+        self.estim=Pose2D()
+
 
     #envoie une commande toutes les 50ms
     def commande(self):
         # self.get_logger().info("cmd") 
-        self.t=self.t+0.1
+        self.t=self.t+self.dt
         if self.t>0.5:
             self.cmd.linear.x=0.5
-        if self.t>5.0:
+        if self.t>10.0:
             self.cmd.linear.x=0.0
             # self.angular.z=1.0
-            self.get_logger().info(f"Final X position:{self.position.x}")
         self.pub_cmd_vel.publish(self.cmd)
-    
-    #récupération des informations de tag
-    #dans self.tag.values on trouve [tag_id,dist,tag_id2,dist2,0,0]
+        
+        #calcul simple de la position estimée dans ce cas
+        self.estim.x=self.estim.x+self.dt*self.cmd.linear.x
+        
+        # pour envoyer la position estimée au noeud graph
+        self.pub_estim.publish(self.estim)
+
+        # pour  détecter si probleme de synchro temporelle
+        # tout va bien si delta reste constant
+        delta=self.sim_time-self.t
+        # self.get_logger().info(f"delta {delta:6.1f}")
+
+        
+
+    # récupération des informations de tag
+    # dans self.tag.values on trouve [tag_id,dist,tag_id2,dist2,0,0]
+
     def cb_tag(self, msg):
         self.tag=msg
         self.tag_recept=True
@@ -85,22 +99,30 @@ class Kalman(Node):
     #récupération de la position réelle du robot dans le simulateur
     # et reconversion dans self.position pour avoir un message 2D x,y,theta
     def cb_odom(self,msg):
+
         self.position.x=msg.pose.pose.position.x
         self.position.y=msg.pose.pose.position.y
         roll,pitch,yaw=euler_from_quaternion(msg.pose.pose.orientation)
         self.position.theta=yaw
-        plt.scatter(self.position.x,self.position.y,s=5,color = 'red')
-        # plt.show(block=False)
-        plt.draw()
-        plt.pause(0.0001)
+        self.sim_time=msg.header.stamp.sec+1e-9*msg.header.stamp.nanosec
         
+        # gazebo pas a pas
+        # ros2 service call /step_world gazebo_msgs/srv/StepWorld "{num_steps: 1}"
+
+        
+
+
 
 
 def main(args=None):
     rclpy.init(args=args)
     node=Kalman()
+    # node.set_parameters('use_sim_time', True)
+    
     rclpy.spin(node)
     rclpy.shutdown()
 
 if __name__== "__main__":
     main()
+
+

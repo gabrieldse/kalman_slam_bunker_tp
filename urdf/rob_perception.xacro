@@ -96,26 +96,64 @@
 
 <!-- LEFT WHEELs -->
 
-<!-- <xacro:roue suffix="left" num="0" xx="0" zpol_bunker/urdf/macro-camera.xacroz="0" sign=""/> 
-<xacro:roue suffix="left" num="1" xx="${x1}" zz="0" sign=""/> 
-<xacro:roue suffix="left" num="2" xx="${-x1}" zz="0" sign=""/>  -->
+<xacro:roue suffix="left" num="0" xx="0" zz="0" sign=""/> 
+<!-- <xacro:roue suffix="left" num="1" xx="${x1}" zz="0" sign=""/> 
+<xacro:roue suffix="left" num="2" xx="${-x1}" zz="0" sign=""/> 
 <xacro:roue suffix="left" num="3" xx="${x2}" zz="0" sign=""/> 
-<xacro:roue suffix="left" num="4" xx="${-x2}" zz="0" sign=""/> 
+<xacro:roue suffix="left" num="4" xx="${-x2}" zz="0" sign=""/>  -->
 <!-- <xacro:roue suffix="left" num="5" xx="${-x3}" zz="0.120" sign=""/> 
 <xacro:roue suffix="left" num="6" xx="${x4}" zz="0.155" sign=""/> 
 <xacro:roue suffix="left" num="7" xx="${x5}" zz="0.078" sign=""/>  -->
 
 
 <!-- RIGHT WHEELs -->
-<!-- <xacro:roue suffix="right" num="0" xx="0" zz="0" sign="-"/> 
-<xacro:roue suffix="right" num="1" xx="${x1}" zz="0" sign="-"/> 
-<xacro:roue suffix="right" num="2" xx="${-x1}" zz="0" sign="-"/>  -->
+<xacro:roue suffix="right" num="0" xx="0" zz="0" sign="-"/> 
+<!-- <xacro:roue suffix="right" num="1" xx="${x1}" zz="0" sign="-"/> 
+<xacro:roue suffix="right" num="2" xx="${-x1}" zz="0" sign="-"/> 
 <xacro:roue suffix="right" num="3" xx="${x2}" zz="0" sign="-"/> 
-<xacro:roue suffix="right" num="4" xx="${-x2}" zz="0" sign="-"/> 
+<xacro:roue suffix="right" num="4" xx="${-x2}" zz="0" sign="-"/>  -->
 <!-- <xacro:roue suffix="right" num="5" xx="${-x3}" zz="0.120" sign="-"/> 
 <xacro:roue suffix="right" num="6" xx="${x4}" zz="0.155" sign="-"/> 
 <xacro:roue suffix="right" num="7" xx="${x5}" zz="0.078" sign="-"/>  -->
 
+    <joint name="caster_wheel_joint1" type="fixed">
+        <parent link="$(arg namespace)/base_link"/>
+        <child link="caster_wheel1"/>
+        <origin xyz="-${base_width/2.0} 0 ${wheel_radius}" rpy="0 0 0"/>
+    </joint>
+
+    <link name="caster_wheel1">
+        <visual>
+            <geometry>
+                <sphere radius="${wheel_radius}" />
+            </geometry>
+            <material name="blue"/>
+        </visual>
+        <collision>
+            <geometry>
+                <sphere radius="${wheel_radius}" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="caster_wheel_joint2" type="fixed">
+        <parent link="$(arg namespace)/base_link"/>
+        <child link="caster_wheel2"/>
+        <origin xyz="${base_width/2.0} 0 ${wheel_radius}" rpy="0 0 0"/>
+    </joint>
+
+    <link name="caster_wheel2">
+        <visual>
+            <geometry>
+                <sphere radius="${wheel_radius}" />
+            </geometry>
+            <material name="blue"/>
+        </visual>
+        <collision>
+            <geometry>
+                <sphere radius="${wheel_radius}" />
+            </geometry>
+        </collision>
+    </link>
 
 <!-- IMU -->
 <xacro:myimu xyz="0 0 ${sol_height+base_height}" rpy="0 0 0"/>
@@ -134,17 +172,17 @@
 
 
     <!-- wheels -->
-    <num_wheel_pairs>2</num_wheel_pairs>
-                <!-- <left_joint>$(arg namespace)/left_wheel_joint_0</left_joint>
+    <num_wheel_pairs>1</num_wheel_pairs>
+                <left_joint>$(arg namespace)/left_wheel_joint_0</left_joint>
                 <right_joint>$(arg namespace)/right_wheel_joint_0</right_joint>  
-                <left_joint>$(arg namespace)/left_wheel_joint_1</left_joint>
+                <!-- <left_joint>$(arg namespace)/left_wheel_joint_1</left_joint>
                 <right_joint>$(arg namespace)/right_wheel_joint_1</right_joint>
                 <left_joint>$(arg namespace)/left_wheel_joint_2</left_joint>
-                <right_joint>$(arg namespace)/right_wheel_joint_2</right_joint> -->
+                <right_joint>$(arg namespace)/right_wheel_joint_2</right_joint>
                 <left_joint>$(arg namespace)/left_wheel_joint_3</left_joint>
                 <right_joint>$(arg namespace)/right_wheel_joint_3</right_joint>
                 <left_joint>$(arg namespace)/left_wheel_joint_4</left_joint>
-                <right_joint>$(arg namespace)/right_wheel_joint_4</right_joint>
+                <right_joint>$(arg namespace)/right_wheel_joint_4</right_joint> -->
                 <!-- <left_joint>$(arg namespace)/left_wheel_joint_5</left_joint>
                 <right_joint>$(arg namespace)/right_wheel_joint_5</right_joint>
                 <left_joint>$(arg namespace)/left_wheel_joint_6</left_joint>
