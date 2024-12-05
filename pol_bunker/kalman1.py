@@ -55,7 +55,14 @@ class Kalman(Node):
         self.sim_time=0.0
         self.cmd=Twist()
         self.t=0.0
-        self.cmd.linear.x=0.0
+        self.v = 0.0 # commande ne vitesse du robot
+        self.d = 0.0 #distance with the cam
+        self.dx = 0.0 #distance cam_robot along x axis
+        self.dy = 0.0 #distance cam_robot along y axis
+
+        #Obstacle location
+        self.obsx = 8.0
+        self.obsy = 0.0
 
         self.tag_recept=False
         self.tag=ChannelFloat32()
@@ -64,67 +71,100 @@ class Kalman(Node):
         self.estim=Pose2D()
 
         # Estimation of epsilon of xt
-        self.epsilon = 0.0
-        self.epsilon_array = []
+        self.error_on_pos = 0.0
+        self.error_on_pos_array = []
         self.mu_moyen = 0.0
-        self.epsilon_moyen = 0.0
+        self.variance_epsilon = 0.0 #Rt
 
         # Variable of delta of xt
-        self.delta_array = []
-        self.delta_moyen = 0.0
-        self.variance_delta_moyen = 0.0
+        self.cam_dist_array = []
+        self.cam_dist_mean = 0.0
+        self.cam_dist_var = 0.0
+
+        #Matrix definition
+        self.sigma = np.zeros([3,3])
+        self.Rt = [ [0.0196, 0, 0],[0, 0.0196, 0],[0, 0,np.pi/180] ] ## todo correct 1 degree of error in variance
+        self.G =  np.zeros([3,3])
+        self.Qt = [[0.000208, 0], [0, 0.000208]]
+        self.Ht = np.zeros([2,3])
+
+        
 
     #envoie une commande toutes les 50ms
     def commande(self):
         # self.get_logger().info("cmd") 
         self.t=self.t+self.dt
         if self.t>0.5:
-            self.cmd.linear.x=0.5
+            self.v = 0.5
+
+            ### Calculate the VARIANCE of the ODOM (state) measurement --------------------
+            # self.error_on_pos = self.position.x - self.estim.x
+            # self.error_on_pos_array.append(self.error_on_pos)
+            # self.mu_moyen = np.mean(self.error_on_pos_array)
+            # self.variance_epsilon = np.var(self.error_on_pos_array)
+            # self.get_logger().info(f"self.error_on_pos: {self.error_on_pos}")
+            # self.get_logger().info(f"----------------------------------")
+
         if self.t>11.0:
-            self.cmd.linear.x=0.0
+            self.v = 0
 
-             ### Calculate the noise/ error of the camera----------------------------------------------------------
-            #self.get_logger().info(f"Delta moyen: {self.tag}")
-            self.delta_array.append(self.tag.values[1])
-            self.delta_moyen = np.mean(self.delta_array)
-            self.variance_delta_moyen = np.var(self.delta_array)
+            ### Calculate the VARIANCE of the camera measurement --------------------
+            # self.cam_dist_array.append(self.tag.values[1])
+            # self.cam_dist_mean = np.mean(self.cam_dist_array)
+            # self.cam_dist_var = np.var(self.cam_dist_array)
+            # self.get_logger().info(f"self.cam_dist_var: {self.cam_dist_var}")
 
-
-            # self.angular.z=1.0
-        self.pub_cmd_vel.publish(self.cmd)
+        #Speed parameters
+        self.cmd.linear.x = self.v*np.cos(self.estim.theta)
+        self.cmd.linear.y = self.v*np.sin(self.estim.theta)
+       
         
-        # Estimation
+
+        ##### KALMAN CALCULATION
+
+        ### EQ 1 - estimation update
         self.estim.x=self.estim.x+self.dt*self.cmd.linear.x
 
-        ### Calculate the noise/ error of the robot----------------------------------------------------------
-        self.get_logger().info("[###################################################################")
-        # Epsilon
-        self.epsilon = self.position.x - self.estim.x
-        self.epsilon_array.append(self.epsilon)
-        self.mu_moyen = np.mean(self.epsilon_array)
-        self.epsilon_moyen = np.var(self.epsilon_array)
+        ### EQ 2 - Uncertainty of the current position update
+        self.G = np.array([[1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
+                           [0, 1, self.v * self.dt * np.cos(self.estim.theta)],
+                           [0, 0, 1]])
+        
+        self.dx = self.obsx - self.estim.x
+        self.dy = self.obsy - self.estim.y
+        self.d = np.sqrt(self.dx**2 + self.dy**2)
 
-        self.get_logger().info(f"Mu moyen: {self.mu_moyen}")
-        self.get_logger().info(f"Ecart Type: {self.epsilon_moyen}")
-        self.get_logger().info(" ")
+        self.Ht = np.array([[self.dx/self.d, self.dx/self.d, 0],
+                           [-self.dy/(self.d**2), self.dx/(self.d**2), -1]])
 
-        self.get_logger().info(f"Delta moyen: {self.delta_moyen}")
-        self.get_logger().info(f"Ecart Type Delta: {self.variance_delta_moyen}")
-        self.get_logger().info("###################################################################] ")
-        self.get_logger().info(" ")
-        self.get_logger().info(" ")
+        # self.sigma = np.array([ [1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
+        #                         [0, 1, self.v * self.dt * np.cos(self.estim.theta)],
+        #                         [0, 0, 1]])
+        self.sigma_estime = self.G * self.sigma * np.transpose(self.G) + self.Rt
 
+        ### EQ 3 - Kalman GAIN calculation
+        self.K = self.sigma_estime * np.transpose(self.Ht) * np.linalg.inv(self.Ht * self.sigma_estime * np.transpose(self.Ht)  + self.Qt)
+        ### EQ 4
+        
+        ### EQ 5
+        #self.sigma = self.sigma_estime
 
-       
+        # self.get_logger().info(f"Mu moyen: {self.mu_moyen}")
+        
+        # self.get_logger().info(" ")
 
-        # pour envoyer la position estimée au noeud graph
+        # self.get_logger().info(f"Delta moyen: {self.cam_dist_mean}")
+        # self.get_logger().info(f"Variance Type Delta: {self.cam_dist_var}")
+
+        # # Linéarisation de de g => equation non linéaire de  l'état du robot
+        # self.G = [[1, 0, -self.dt*self.cmd.linear.y], [0, 1, self.dt*self.cmd.linear.x], [0, 0, 1]]
+
+        ### PUBLISH ESTIMATION
         self.pub_estim.publish(self.estim)
-        #self.get_logger().info(f"epsilon: {self.epsilon}")
 
-        # pour  détecter si probleme de synchro temporelle
-        # tout va bien si delta reste constant
+        ### PUBLISH COMMANDS
         delta=self.sim_time-self.t
-        # self.get_logger().info(f"delta {delta:6.1f}")
+        self.pub_cmd_vel.publish(self.cmd)
 
         
 
