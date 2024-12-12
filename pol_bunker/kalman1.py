@@ -5,6 +5,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import Image,CameraInfo,ChannelFloat32 # Image is the message type
 from geometry_msgs.msg import Twist,Pose2D
+from std_msgs.msg import Float64
 from nav_msgs.msg import Odometry
 import numpy as np
 from math import sqrt,asin,atan2
@@ -47,6 +48,7 @@ class Kalman(Node):
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.cb_odom, 1)
         self.sub_tag = self.create_subscription(ChannelFloat32,"/tag",self.cb_tag,1)
         self.pub_cmd_vel =self.create_publisher(Twist,"/cmd_vel",1)
+        self.pub_epsilon = self.create_publisher(Float64,"/epsilon",1)
         self.pub_estim=self.create_publisher(Pose2D,"/odom_estim",1)
 
         self.dt=0.1
@@ -64,7 +66,8 @@ class Kalman(Node):
         self.estim=Pose2D()
 
         # Variable of xt
-        self.epsilon = 0.0
+        self.epsilon = Float64()
+        self.epsilon.data = 0.0
         self.epsilon_array = []
         self.mu_moyen = 0.0
         self.epsilon_moyen = 0.0
@@ -77,7 +80,7 @@ class Kalman(Node):
         if self.t>0.5:
             self.cmd.linear.x=0.5
         if self.t>10.0:
-            self.cmd.linear.x=0.0
+            self.cmd.linear.x=0.0 
 
             # self.angular.z=1.0
         self.pub_cmd_vel.publish(self.cmd)
@@ -87,7 +90,8 @@ class Kalman(Node):
 
         ### Setting up the actionning state equation xt----------------------------------------------------------
         # Epsilon
-        self.epsilon = self.position.x - self.estim.x
+        self.epsilon.data = self.position.x - self.estim.x
+        self.pub_epsilon.publish(self.epsilon)
         self.epsilon_array.append(self.epsilon)
 
         self.mu_moyen = np.mean(self.epsilon_array)
