@@ -47,7 +47,7 @@ class Kalman(Node):
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.cb_odom, 1)
         self.sub_tag = self.create_subscription(ChannelFloat32,"/tag",self.cb_tag,1)
         self.pub_cmd_vel =self.create_publisher(Twist,"/cmd_vel",1)
-        self.pub_estim=self.create_publisher(Pose2D,"/odom_estim",1)
+        self.pub_estim=self.create_publisher(Pose2D,"/odom_ekf",1)
 
         self.dt=0.1
         self.timer=self.create_timer(self.dt, self.commande)
@@ -126,11 +126,13 @@ class Kalman(Node):
 
         ##### KALMAN CALCULATION
 
-        ### EQ 1 - estimation update
+        ### EQ 1 - Estimation update
         self.estim.x=self.estim.x+self.dt*self.cmd.linear.x
+        self.estim.y=self.estim.y+self.dt*self.cmd.linear.y
+        self.estim.theta=self.estim.theta+self.dt*self.cmd.angular.z 
         
 
-        ### EQ 2 - Uncertainty of the current position update
+        ### EQ 2 - Uncertainty (Jacobian matrix )
         self.G = np.array([[1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
                            [0, 1, self.v * self.dt * np.cos(self.estim.theta)],
                            [0, 0, 1]])
@@ -138,13 +140,16 @@ class Kalman(Node):
         self.dx = self.obsx - self.estim.x
         self.dy = self.obsy - self.estim.y
         self.d = np.sqrt(self.dx**2 + self.dy**2)
+        
+        self.get_logger().info(f"dx =  {self.dx}, dy = {self.dy}, d = {self.d}; estimX = {self.estim.x}, estimY = {self.estim.y}")
+        
 
         self.Ht = np.array([[self.dx/self.d, self.dx/self.d, 0],
                            [-self.dy/(self.d**2), self.dx/(self.d**2), -1]])
 
-        self.sigma = np.array([ [1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
-                                [0, 1, self.v * self.dt * np.cos(self.estim.theta)],
-                                [0, 0, 1]])
+        # self.sigma = np.array([ [1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
+        #                         [0, 1, self.v * self.dt * np.cos(self.estim.theta)],
+        #                         [0, 0, 1]])
         
         self.sigma_estime = self.G @ self.sigma @ np.transpose(self.G) + self.Rt
 
@@ -152,23 +157,21 @@ class Kalman(Node):
         self.Kt = self.sigma_estime @ np.transpose(self.Ht) @ np.linalg.inv(self.Ht @ self.sigma_estime @ np.transpose(self.Ht)  + self.Qt)
   
         
-        ### EQ 4
-        self.h_mu_t = np.array([[np.sqrt(self.dx**2 + self.dy**2)**2],[np.arctan (self.dy/ self.dx) - self.estim.theta]]) # are both supose to be zero at the second coordinate ?
+        ### EQ 4 
+        # Measurement Model
+        self.h_mu_t = np.array([[self.d],[np.arctan (self.dy/ self.dx) - self.estim.theta]]) # are both supose to be zero at the second coordinate ?
         self.z = np.array([[self.tag.values[1]],[np.arctan(self.dy/self.dx) - self.estim.theta] ])# measure of the appril tag
         update = self.Kt @ ( self.z - self.h_mu_t )
-        self.estim.x =  update[0,0]
-        self.estim.y =  update[1,0]
-        # self.estim.theta =  update[2,0]
+        # Kalman update
+        self.estim.x = self.estim.x + update[0, 0]
+        self.estim.y = self.estim.y + update[1, 0]
+        # self.estim.theta = self.estim.theta + update[2, 0]
         
         self.get_logger().info(f"h_mu_t {self.h_mu_t}")
         self.get_logger().info(f"zt {self.z}")
         
         ### EQ 5 - Update the covariance matrix
         self.sigma = (np.identity(3)-self.Kt @ self.Ht) @ self.sigma_estime
-        #self.sigma = self.sigm a_estime
-
-        # # Linéarisation de de g => equation non linéaire de  l'état du robot
-        # self.G = [[1, 0, -self.dt*self.cmd.linear.y], [0, 1, self.dt*self.cmd.linear.x], [0, 0, 1]]
 
         ### PUBLISH ESTIMATION
         self.pub_estim.publish(self.estim)
@@ -176,8 +179,6 @@ class Kalman(Node):
         ### PUBLISH COMMANDS
         delta=self.sim_time-self.t
         self.pub_cmd_vel.publish(self.cmd)
-
-        
 
     # récupération des informations de tag
     # dans self.tag.values on trouve [tag_id,dist,tag_id2,dist2,0,0]
@@ -211,5 +212,3 @@ def main(args=None):
 
 if __name__== "__main__":
     main()
-
-
