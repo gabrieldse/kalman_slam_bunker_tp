@@ -87,7 +87,11 @@ class Kalman(Node):
         self.G =  np.zeros([3,3])
         self.Qt = [[0.000208, 0], [0, 0.000208]]
         self.Ht = np.zeros([2,3])
-
+        self.Kt = np.zeros([3,2])
+        self.h_mu_t = np.zeros([2,1])
+        
+        self.z = np.zeros([2,1])
+    
         
 
     #envoie une commande toutes les 50ms
@@ -124,6 +128,7 @@ class Kalman(Node):
 
         ### EQ 1 - estimation update
         self.estim.x=self.estim.x+self.dt*self.cmd.linear.x
+        
 
         ### EQ 2 - Uncertainty of the current position update
         self.G = np.array([[1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
@@ -137,24 +142,30 @@ class Kalman(Node):
         self.Ht = np.array([[self.dx/self.d, self.dx/self.d, 0],
                            [-self.dy/(self.d**2), self.dx/(self.d**2), -1]])
 
-        # self.sigma = np.array([ [1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
-        #                         [0, 1, self.v * self.dt * np.cos(self.estim.theta)],
-        #                         [0, 0, 1]])
-        self.sigma_estime = self.G * self.sigma * np.transpose(self.G) + self.Rt
+        self.sigma = np.array([ [1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
+                                [0, 1, self.v * self.dt * np.cos(self.estim.theta)],
+                                [0, 0, 1]])
+        
+        self.sigma_estime = self.G @ self.sigma @ np.transpose(self.G) + self.Rt
 
         ### EQ 3 - Kalman GAIN calculation
-        self.K = self.sigma_estime * np.transpose(self.Ht) * np.linalg.inv(self.Ht * self.sigma_estime * np.transpose(self.Ht)  + self.Qt)
+        self.Kt = self.sigma_estime @ np.transpose(self.Ht) @ np.linalg.inv(self.Ht @ self.sigma_estime @ np.transpose(self.Ht)  + self.Qt)
+  
+        
         ### EQ 4
+        self.h_mu_t = np.array([[np.sqrt(self.dx**2 + self.dy**2)**2],[np.arctan (self.dy/ self.dx) - self.estim.theta]]) # are both supose to be zero at the second coordinate ?
+        self.z = np.array([[self.tag.values[1]],[np.arctan(self.dy/self.dx) - self.estim.theta] ])# measure of the appril tag
+        update = self.Kt @ ( self.z - self.h_mu_t )
+        self.estim.x =  update[0,0]
+        self.estim.y =  update[1,0]
+        # self.estim.theta =  update[2,0]
         
-        ### EQ 5
-        #self.sigma = self.sigma_estime
-
-        # self.get_logger().info(f"Mu moyen: {self.mu_moyen}")
+        self.get_logger().info(f"h_mu_t {self.h_mu_t}")
+        self.get_logger().info(f"zt {self.z}")
         
-        # self.get_logger().info(" ")
-
-        # self.get_logger().info(f"Delta moyen: {self.cam_dist_mean}")
-        # self.get_logger().info(f"Variance Type Delta: {self.cam_dist_var}")
+        ### EQ 5 - Update the covariance matrix
+        self.sigma = (np.identity(3)-self.Kt @ self.Ht) @ self.sigma_estime
+        #self.sigma = self.sigm a_estime
 
         # # Linéarisation de de g => equation non linéaire de  l'état du robot
         # self.G = [[1, 0, -self.dt*self.cmd.linear.y], [0, 1, self.dt*self.cmd.linear.x], [0, 0, 1]]
