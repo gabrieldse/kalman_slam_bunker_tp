@@ -67,8 +67,9 @@ class Kalman(Node):
         self.tag_recept=False
         self.tag=ChannelFloat32()
         self.tag.values= [0.0,0.0,0.0,0.0,0.0,0.0]
-        self.position=Pose2D()
-        self.estim=Pose2D()
+        self.state_gazebo=Pose2D()
+        self.state_estim=Pose2D()
+        self.state=Pose2D()
 
         # Estimation of epsilon of xt
         self.error_on_pos = 0.0
@@ -82,13 +83,13 @@ class Kalman(Node):
         self.cam_dist_var = 0.0
 
         #Matrix definition
-        self.sigma = [[1, 0, 0],[0, 1, 0],[0, 0, 1]] # Init of the State Covariance matrix 
+        self.sigma = np.identity(3) # Init of the State Covariance matrix 
         self.Rt = [ [0.0196, 0, 0],[0, 0.0196, 0],[0, 0,np.pi/180] ] ## todo correct 1 degree of error in variance
         self.G =  np.zeros([3,3])
         self.Qt = 0.000208 # Camera variance, measured on the camera experiment
         self.Ht = np.zeros([1,3])
-        self.Kt = np.zeros([3,2])
-        self.h_mu_estim = 0
+        self.Kt = np.zeros([3,1])
+        self.d_state_estim = 0
         self.z = 0
     
         
@@ -101,7 +102,7 @@ class Kalman(Node):
             self.v = 0.5
 
             ### Calculate the VARIANCE of the ODOM (state) measurement --------------------
-            # self.error_on_pos = self.position.x - self.estim.x
+            # self.error_on_pos = self.state_gazebo.x - self.state.x
             # self.error_on_pos_array.append(self.error_on_pos)
             # self.mu_moyen = np.mean(self.error_on_pos_array)
             # self.variance_epsilon = np.var(self.error_on_pos_array)
@@ -118,31 +119,34 @@ class Kalman(Node):
             # self.get_logger().info(f"self.cam_dist_var: {self.cam_dist_var}")
 
         #Speed parameters
-        self.cmd.linear.x = self.v*np.cos(self.estim.theta)
-        self.cmd.linear.y = self.v*np.sin(self.estim.theta)
+        
+        self.cmd.linear.x = self.v*np.cos(self.state.theta)
+        self.get_logger().info(f" ******* [ DEBUG ******** ]  self.cmd.linear.x = {self.cmd.linear.x}; self.v = {self.v}, np.cos(self.state.theta) = {np.cos(self.state.theta)}")
+        self.cmd.linear.y = self.v*np.sin(self.state.theta)
        
         
 
         ##### KALMAN CALCULATION #####
 
         ### EQ 1 - State Estimation Update
-        self.estim.x = self.estim.x + self.dt*self.cmd.linear.x
-        self.estim.y = self.estim.y + self.dt*self.cmd.linear.y
-        self.estim.theta = self.estim.theta + self.dt * self.cmd.angular.z 
+        self.state_estim.x = self.state.x + self.dt*self.cmd.linear.x
+        self.get_logger().info(f" ******* [ DEBUG ]  self.state.x = {self.state.x}; self.state_estim.x = {self.state_estim.x}")
+        self.state_estim.y = self.state.y + self.dt*self.cmd.linear.y
+        self.state_estim.theta = self.state.theta + self.dt * self.cmd.angular.z 
         
 
         ### Section 2 - Uncertainty State (Jacobian matrix )
         
-        self.G = np.array([[1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
-                           [0, 1, self.v * self.dt * np.cos(self.estim.theta)],
+        self.G = np.array([[1, 0, -self.v * self.dt * np.sin(self.state.theta)],
+                           [0, 1, self.v * self.dt * np.cos(self.state.theta)],
                            [0, 0, 1]])
         
         # delta x and delta y (distance along x, and y between the robot and the obstacle)
-        self.dx = self.obsx - self.estim.x
-        self.dy = self.obsy - self.estim.y
+        self.dx = self.obsx - self.state_estim.x
+        self.dy = self.obsy - self.state_estim.y
         self.d = np.sqrt(self.dx**2 + self.dy**2) # Distance between where we think the robot is and the obstacle
         
-        self.get_logger().info(f" ******* [ DEBUG ]  D_estimated = {self.d}; robot estimX = {self.estim.x}, robot estimY = {self.estim.y}, obstable X = {self.obsx}")
+        self.get_logger().info(f" ******* [ DEBUG ]  D_estimated = {self.d}; robot estimX = {self.state.x}, robot estimY = {self.state.y}, obstacle X = {self.obsx}, obstacle Y = {self.obsy}")
                 
         # Actual EQ 2
         self.sigma_estime = self.G @ self.sigma @ np.transpose(self.G) + self.Rt
@@ -159,23 +163,30 @@ class Kalman(Node):
         ### Section 4 
         
         # Measurement Model
-        self.h_mu_estim = np.array([self.d]) # are both supose to be zero at the second coordinate ?
+        self.d_state_estim = np.array([self.d]) # are both supose to be zero at the second coordinate ?
         self.z = np.array([self.tag.values[1]])# measure of the appril tag
-        update = self.Kt @ ( self.z - self.h_mu_estim ) # ERROR
+        
+        """
+        If no measure from the camera is obtained, do not use (obstacle distance - 0), 8 for the first case. As an update 
+        """
+        if self.z != 0:
+            update = self.Kt @ ( self.z - self.d_state_estim ) # ERROR
+        else:
+            update = np.zeros([3])
         
         # Kalman update
-        self.estim.x = self.estim.x + update[0]
-        self.estim.y = self.estim.y + update[1]
-        self.estim.theta = self.estim.theta + update[2]
+        self.state.x = self.state_estim.x + update[0]
+        self.state.y = self.state_estim.y + update[1]
+        self.state.theta = self.state_estim.theta + update[2]
         
-        self.get_logger().info(f"h_mu_estim {self.h_mu_estim}")
-        self.get_logger().info(f"zt {self.z}")
+        self.get_logger().info(f" ******* [ DEBUG ] d estimated from self.estim   {self.d_state_estim}")
+        self.get_logger().info(f" ******* [ DEBUG ] d obtained from camera {self.z}")
         
         ### EQ 5 - Update the covariance matrix
         self.sigma = (np.identity(3)-self.Kt @ self.Ht) @ self.sigma_estime
 
         ### PUBLISH ESTIMATION
-        self.pub_estim.publish(self.estim)
+        self.pub_estim.publish(self.state)
 
         ### PUBLISH COMMANDS
         delta=self.sim_time-self.t
@@ -190,13 +201,13 @@ class Kalman(Node):
 
 
     #récupération de la position réelle du robot dans le simulateur
-    # et reconversion dans self.position pour avoir un message 2D x,y,theta
+    # et reconversion dans self.state_gazebo pour avoir un message 2D x,y,theta
     def cb_odom(self,msg):
 
-        self.position.x=msg.pose.pose.position.x
-        self.position.y=msg.pose.pose.position.y
+        self.state_gazebo.x=msg.pose.pose.position.x
+        self.state_gazebo.y=msg.pose.pose.position.y
         roll,pitch,yaw=euler_from_quaternion(msg.pose.pose.orientation)
-        self.position.theta=yaw
+        self.state_gazebo.theta=yaw
         self.sim_time=msg.header.stamp.sec+1e-9*msg.header.stamp.nanosec
         
         # gazebo pas a pas
