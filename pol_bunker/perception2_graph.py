@@ -38,49 +38,60 @@ class Graph(Node):
 
         super().__init__('Graph')
         self.sub_odom = self.create_subscription(Odometry, '/odom', self.cb_odom, 1)
-        self.sub_odom_estim = self.create_subscription(Pose2D, '/odom_estim', self.cb_estim, 1)
-        self.timer=self.create_timer(1, self.update_graph)
-        self.position=Pose2D()
+        self.sub_odom_estim = self.create_subscription(Pose2D, '/odom_ekf', self.cb_odom_ekf, 1)
+        self.timer = self.create_timer(1, self.update_graph)
+        self.position = Pose2D()
         
+        # Initialize the figure and axis
+        self.fig, self.axis = plt.subplots()
+        self.axis.set_xlim(0, 10)  # X-axis limits
+        self.axis.set_ylim(-2, 2)  # Y-axis limits
+        self.axis.set_aspect('equal', adjustable='box')  # Keep axis proportional
+        self.axis.set_title("Robot Position and EKF Estimation")  # Title
+        self.axis.set_xlabel("X position (m)")  # X-axis label
+        self.axis.set_ylabel("Y position (m)")  # Y-axis label
 
-        self.fig = plt.figure(1)
-        self.fig.clf()
-        axis=self.fig.gca()
-        axis.set_xlim(-10.0,10.0)
-        axis.set_ylim(-5.0,5.0)
-        self.t_pos_x=[]
-        self.t_pos_y=[]
+        # Initialize data containers
+        self.t_pos_x = []
+        self.t_pos_y = []
+        self.t_estim_x = []
+        self.t_estim_y = []
+
+        plt.ion()  # Turn on interactive mode
+        plt.show()
+
+    def cb_odom(self, msg):
+        self.position.x = msg.pose.pose.position.x
+        self.position.y = msg.pose.pose.position.y
+        roll, pitch, yaw = euler_from_quaternion(msg.pose.pose.orientation)
+        self.position.theta = yaw
+        self.t_pos_x.append(self.position.x)
+        self.t_pos_y.append(self.position.y)
+
+    def cb_odom_ekf(self, msg):
+        self.get_logger().info("EKF estimation received")
+        self.t_estim_x.append(msg.x)
+        self.t_estim_y.append(msg.y)
+
+    def update_graph(self):
+        self.axis.clear()  # Clear the axis for updating
         
-        self.t_estim_x=[]
-        self.t_estim_y=[]
+        # Plot the data
+        self.axis.scatter(self.t_pos_x, self.t_pos_y, s=5, color='blue', label='True Position')
+        self.axis.scatter(self.t_estim_x, self.t_estim_y, s=5, color='red', label='EKF Estimation')
+        
+        # Add grid, legend, and fixed axis limits
+        self.axis.grid()
+        self.axis.set_xlim(0, 10)  # X-axis limits
+        self.axis.set_ylim(-2, 2)  # Y-axis limits
+        self.axis.set_aspect('equal', adjustable='box')  # Keep axis proportional
+        self.axis.set_title("Robot Position and EKF Estimation")  # Title
+        self.axis.set_xlabel("X position (m)")  # X-axis label
+        self.axis.set_ylabel("Y position (m)")  # Y-axis label
+        self.axis.legend(loc='upper right')  # Add legend
 
         plt.draw()
         plt.pause(0.001)
-
-
-    def cb_odom(self,msg):
-        self.position.x=msg.pose.pose.position.x
-        self.position.y=msg.pose.pose.position.y
-        roll,pitch,yaw=euler_from_quaternion(msg.pose.pose.orientation)
-        self.position.theta=yaw
-        self.t_pos_x.append(self.position.x)
-        self.t_pos_y.append(self.position.y)
-        # plt.scatter(self.position.x,self.position.y,s=5,color = 'red')
-
-    def cb_estim(self,msg):
-        self.get_logger().info("estim")
-        self.t_estim_x.append(msg.x)
-        self.t_estim_y.append(msg.y)
-        # plt.scatter(msg.x,msg.y,s=5,color = 'blue')
-        
-    def update_graph(self):
-        plt.clf()
-        plt.scatter(self.t_pos_x,self.t_pos_y,s=5,color = 'red')
-        plt.scatter(self.t_estim_x,self.t_estim_y,s=5,color = 'blue')
-        plt.grid()
-        plt.draw()
-
-        plt.pause(0.0001)
 
 
 
