@@ -82,15 +82,14 @@ class Kalman(Node):
         self.cam_dist_var = 0.0
 
         #Matrix definition
-        self.sigma = np.zeros([3,3])
+        self.sigma = [[1, 0, 0],[0, 1, 0],[0, 0, 1]] # Init of the State Covariance matrix 
         self.Rt = [ [0.0196, 0, 0],[0, 0.0196, 0],[0, 0,np.pi/180] ] ## todo correct 1 degree of error in variance
         self.G =  np.zeros([3,3])
-        self.Qt = [[0.000208, 0], [0, 0.000208]]
-        self.Ht = np.zeros([2,3])
+        self.Qt = 0.000208 # Camera variance, measured on the camera experiment
+        self.Ht = np.zeros([1,3])
         self.Kt = np.zeros([3,2])
-        self.h_mu_t = np.zeros([2,1])
-        
-        self.z = np.zeros([2,1])
+        self.h_mu_estim = 0
+        self.z = 0
     
         
 
@@ -124,50 +123,52 @@ class Kalman(Node):
        
         
 
-        ##### KALMAN CALCULATION
+        ##### KALMAN CALCULATION #####
 
-        ### EQ 1 - Estimation update
-        self.estim.x=self.estim.x+self.dt*self.cmd.linear.x
-        self.estim.y=self.estim.y+self.dt*self.cmd.linear.y
-        self.estim.theta=self.estim.theta+self.dt*self.cmd.angular.z 
+        ### EQ 1 - State Estimation Update
+        self.estim.x = self.estim.x + self.dt*self.cmd.linear.x
+        self.estim.y = self.estim.y + self.dt*self.cmd.linear.y
+        self.estim.theta = self.estim.theta + self.dt * self.cmd.angular.z 
         
 
-        ### EQ 2 - Uncertainty (Jacobian matrix )
+        ### Section 2 - Uncertainty State (Jacobian matrix )
+        
         self.G = np.array([[1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
                            [0, 1, self.v * self.dt * np.cos(self.estim.theta)],
                            [0, 0, 1]])
         
+        # delta x and delta y (distance along x, and y between the robot and the obstacle)
         self.dx = self.obsx - self.estim.x
         self.dy = self.obsy - self.estim.y
-        self.d = np.sqrt(self.dx**2 + self.dy**2)
+        self.d = np.sqrt(self.dx**2 + self.dy**2) # Distance between where we think the robot is and the obstacle
         
-        self.get_logger().info(f"dx =  {self.dx}, dy = {self.dy}, d = {self.d}; estimX = {self.estim.x}, estimY = {self.estim.y}")
-        
-
-        self.Ht = np.array([[self.dx/self.d, self.dx/self.d, 0],
-                           [-self.dy/(self.d**2), self.dx/(self.d**2), -1]])
-
-        # self.sigma = np.array([ [1, 0, -self.v * self.dt * np.sin(self.estim.theta)],
-        #                         [0, 1, self.v * self.dt * np.cos(self.estim.theta)],
-        #                         [0, 0, 1]])
-        
+        self.get_logger().info(f" ******* [ DEBUG ]  D_estimated = {self.d}; robot estimX = {self.estim.x}, robot estimY = {self.estim.y}, obstable X = {self.obsx}")
+                
+        # Actual EQ 2
         self.sigma_estime = self.G @ self.sigma @ np.transpose(self.G) + self.Rt
-
-        ### EQ 3 - Kalman GAIN calculation
-        self.Kt = self.sigma_estime @ np.transpose(self.Ht) @ np.linalg.inv(self.Ht @ self.sigma_estime @ np.transpose(self.Ht)  + self.Qt)
+        
+        ### Section 3 - Kalman GAIN calculation
+        
+        self.Ht = np.array([[self.dx/self.d, self.dy/self.d, 0]]) # correction np.array ([[a, b, c]]), double [[]] to make a 1x3 array
+        
+        # EQ 3
+        # self.get_logger().info(f" ******* [ DEBUG ] sigma_estima = {np.shape(self.sigma_estime)}; Ht_transp = {np.shape(np.transpose(self.Ht))}, Ht = {np.shape(self.Ht)}, Qt = {np.shape(self.Qt)}" )
+        self.Kt = self.sigma_estime @ np.transpose(self.Ht) @ np.linalg.inv( self.Ht @ self.sigma_estime @ np.transpose(self.Ht)  + self.Qt ) 
   
         
-        ### EQ 4 
-        # Measurement Model
-        self.h_mu_t = np.array([[self.d],[np.arctan (self.dy/ self.dx) - self.estim.theta]]) # are both supose to be zero at the second coordinate ?
-        self.z = np.array([[self.tag.values[1]],[np.arctan(self.dy/self.dx) - self.estim.theta] ])# measure of the appril tag
-        update = self.Kt @ ( self.z - self.h_mu_t )
-        # Kalman update
-        self.estim.x = self.estim.x + update[0, 0]
-        self.estim.y = self.estim.y + update[1, 0]
-        # self.estim.theta = self.estim.theta + update[2, 0]
+        ### Section 4 
         
-        self.get_logger().info(f"h_mu_t {self.h_mu_t}")
+        # Measurement Model
+        self.h_mu_estim = np.array([self.d]) # are both supose to be zero at the second coordinate ?
+        self.z = np.array([self.tag.values[1]])# measure of the appril tag
+        update = self.Kt @ ( self.z - self.h_mu_estim ) # ERROR
+        
+        # Kalman update
+        self.estim.x = self.estim.x + update[0]
+        self.estim.y = self.estim.y + update[1]
+        self.estim.theta = self.estim.theta + update[2]
+        
+        self.get_logger().info(f"h_mu_estim {self.h_mu_estim}")
         self.get_logger().info(f"zt {self.z}")
         
         ### EQ 5 - Update the covariance matrix
