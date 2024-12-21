@@ -170,7 +170,7 @@ class Kalman(Node):
         If no measure from the camera is obtained, do not use (obstacle distance - 0), 8 for the first case. As an update 
         """
         if self.z != 0:
-            update = self.Kt @ ( self.z - self.d_state_estim ) # ERROR
+            update = self.Kt @ (  self.d_state_estim - self.z ) # ERROR
         else:
             update = np.zeros([3])
         
