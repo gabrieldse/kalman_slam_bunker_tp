@@ -32,7 +32,6 @@ def euler_from_quaternion(q):
      
         return roll_x, pitch_y, yaw_z # in radians
 
-
 class Kalman(Node):
 
     def __init__(self):
@@ -84,6 +83,7 @@ class Kalman(Node):
 
         #Matrix definition
         self.sigma = np.identity(3) # Init of the State Covariance matrix 
+        self.sigma_estime = np.identity(3)
         self.Rt = [ [0.0196, 0, 0],[0, 0.0196, 0],[0, 0,np.pi/180] ] ## todo correct 1 degree of error in variance
         self.G =  np.zeros([3,3])
         self.Qt = 0.000208 # Camera variance, measured on the camera experiment
@@ -121,7 +121,7 @@ class Kalman(Node):
         #Speed parameters
         
         self.cmd.linear.x = self.v*np.cos(self.state.theta)
-        self.get_logger().info(f" ******* [ DEBUG ******** ]  self.cmd.linear.x = {self.cmd.linear.x}; self.v = {self.v}, np.cos(self.state.theta) = {np.cos(self.state.theta)}")
+        # self.get_logger().info(f" ******* [ DEBUG ******** ]  self.cmd.linear.x = {self.cmd.linear.x}; self.v = {self.v}, np.cos(self.state.theta) = {np.cos(self.state.theta)}")
         self.cmd.linear.y = self.v*np.sin(self.state.theta)
        
         
@@ -130,7 +130,7 @@ class Kalman(Node):
 
         ### EQ 1 - State Estimation Update
         self.state_estim.x = self.state.x + self.dt*self.cmd.linear.x
-        self.get_logger().info(f" ******* [ DEBUG ]  self.state.x = {self.state.x}; self.state_estim.x = {self.state_estim.x}")
+        # self.get_logger().info(f" ******* [ DEBUG ]  self.state.x = {self.state.x}; self.state_estim.x = {self.state_estim.x}")
         self.state_estim.y = self.state.y + self.dt*self.cmd.linear.y
         self.state_estim.theta = self.state.theta + self.dt * self.cmd.angular.z 
         
@@ -146,10 +146,17 @@ class Kalman(Node):
         self.dy = self.obsy - self.state_estim.y
         self.d = np.sqrt(self.dx**2 + self.dy**2) # Distance between where we think the robot is and the obstacle
         
-        self.get_logger().info(f" ******* [ DEBUG ]  D_estimated = {self.d}; robot estimX = {self.state.x}, robot estimY = {self.state.y}, obstacle X = {self.obsx}, obstacle Y = {self.obsy}")
+        # self.get_logger().info(f" ******* [ DEBUG ]  D_estimated = {self.d}; robot estimX = {self.state.x}, robot estimY = {self.state.y}, obstacle X = {self.obsx}, obstacle Y = {self.obsy}")
                 
         # Actual EQ 2
-        self.sigma_estime = self.G @ self.sigma @ np.transpose(self.G) + self.Rt
+        '''
+        ROBOT NOT MOVING  = NO COVARIANCE UPDATE from Movement Model Jacobian (G)
+        TODO: should I still add the Rt ?
+        Only update the state covariance matrix to acount for the process noise Rt, if an action is node. 
+        If the robot is not moving the error should not increase. 
+        '''
+        if self.v != 0:
+            self.sigma_estime = self.G @ self.sigma @ np.transpose(self.G) + self.Rt
         
         ### Section 3 - Kalman GAIN calculation
         
@@ -159,7 +166,8 @@ class Kalman(Node):
         # self.get_logger().info(f" ******* [ DEBUG ] sigma_estima = {np.shape(self.sigma_estime)}; Ht_transp = {np.shape(np.transpose(self.Ht))}, Ht = {np.shape(self.Ht)}, Qt = {np.shape(self.Qt)}" )
         self.Kt = self.sigma_estime @ np.transpose(self.Ht) @ np.linalg.inv( self.Ht @ self.sigma_estime @ np.transpose(self.Ht)  + self.Qt ) 
   
-        
+        self.get_logger().info(f" ******* [ DEBUG ] STATE COVARIANCE MATRIX  {self.sigma_estime}")
+        self.get_logger().info(f" ******* [ DEBUG ] d obtained from camera {self.z}")
         ### Section 4 
         
         # Measurement Model
@@ -167,29 +175,37 @@ class Kalman(Node):
         self.z = np.array([self.tag.values[1]])# measure of the appril tag
         
         """
-        If no measure from the camera is obtained, do not use (obstacle distance - 0), 8 for the first case. As an update 
+        NO CAMERA = NO COVARIANCE UPDATE from CAMERA Jacobian -H)
+        If no measure from the camera is obtained, do not use (obstacle distance - 0), 8 for the first case, as an update.
+        And do not update covariance and kalman gain, as there is no perception system. 
         """
         if self.z != 0:
             update = self.Kt @ (  self.d_state_estim - self.z ) # ERROR
         else:
-            update = np.zeros([3])
+            self.sigma = self.sigma_estime
+            self.state = self.state_estim
+            
+            ### PUBLISH
+            self.pub_estim.publish(self.state)
+            self.pub_cmd_vel.publish(self.cmd)
+            return
+            
         
         # Kalman update
         self.state.x = self.state_estim.x + update[0]
         self.state.y = self.state_estim.y + update[1]
         self.state.theta = self.state_estim.theta + update[2]
         
-        self.get_logger().info(f" ******* [ DEBUG ] d estimated from self.estim   {self.d_state_estim}")
-        self.get_logger().info(f" ******* [ DEBUG ] d obtained from camera {self.z}")
+        # self.get_logger().info(f" ******* [ DEBUG ] d estimated from self.estim   {self.d_state_estim}")
+       
         
         ### EQ 5 - Update the covariance matrix
         self.sigma = (np.identity(3)-self.Kt @ self.Ht) @ self.sigma_estime
-
-        ### PUBLISH ESTIMATION
+        
+        ### PUBLISH
+        # estimation
         self.pub_estim.publish(self.state)
-
-        ### PUBLISH COMMANDS
-        delta=self.sim_time-self.t
+        # commands
         self.pub_cmd_vel.publish(self.cmd)
 
     # récupération des informations de tag
