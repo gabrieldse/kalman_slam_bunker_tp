@@ -50,12 +50,14 @@ class ImageSubscriber(Node):
         # affiche l'image capturée
         # cv2.imshow('Result', image)
         # cv2.waitKey(1)
-        
-        
 
         if self.param:
+            '''
+            pose_r is a 3x3 rotation matrix of a tag
+            pose_t is a 3x1 translation matrix of the tag
+            '''
             self.tag.values= [0.0,0.0,0.0,0.0,0.0]
-            tags = self.at_detector.detect(grayimg, estimate_tag_pose=True, camera_params=self.params, tag_size=0.5)
+            tags = self.at_detector.detect(grayimg, estimate_tag_pose=True, camera_params=self.params, tag_size=0.5) 
             nbtag=0
             while len(tags)>0:
                 
@@ -69,9 +71,15 @@ class ImageSubscriber(Node):
                 # print(v1.pose_t)
                 # print(f"tag {v1.tag_id} - distance :{d}")
                 self.tag.values[2*nbtag]=v1.tag_id
-                self.tag.values[2*nbtag+1]=d
+                self.tag.values[2*nbtag+1] = d
                 nbtag+=1
             if nbtag>0:
+                self.pub_tag.publish(self.tag)
+            else:
+                '''
+                If no april tag is detected. Still publish recognizable message i.e a distance of zero means no tag is detected. 
+                '''
+                self.tag.values = [0.0,0.0,0.0,0.0,0.0]
                 self.pub_tag.publish(self.tag)
 
 
@@ -95,8 +103,6 @@ class ImageSubscriber(Node):
         y=v1.pose_t[1]
         z=v1.pose_t[2]
         return sqrt(x*x+y*y+z*z)
-
-
 
 def main(args=None):
     rclpy.init(args=args)
